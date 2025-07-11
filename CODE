@@ -1,0 +1,112 @@
+#define BLYNK_TEMPLATE_ID "TMPL6hSyJxGPk"
+#define BLYNK_TEMPLATE_NAME "SMART SOLAR TRACKER CHARGING SYSTEM"
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+// ========== BLYNK AUTH + WIFI ==========
+char auth[] = "3ybIHx4_4prT0sN15m0jdtyUcbsVq5Qy";
+char ssid[] = "realme 10";
+char pass[] = "12345678";
+
+// ========== LCD SETUP ==========
+LiquidCrystal_I2C lcd(0x27, 20, 4);  // 20x4 I2C LCD
+
+// ========== PINS ==========
+#define motorPin1 18
+#define motorPin2 19
+#define ldrLeft 33
+#define ldrRight 25
+// ========== VARIABLES ==========
+String motorStatus = "Stopped";
+String solarStatus = "Idle";
+String batteryStatus = "Holding";
+
+// ========== SETUP ==========
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+
+  // LCD init
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(3, 1);
+  lcd.print("System Starting...");
+  delay(2000);
+  lcd.clear();
+
+  // Motor pins
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+  digitalWrite(motorPin1, LOW);
+  digitalWrite(motorPin2, LOW);
+
+  // WiFi + Blynk
+  WiFi.begin(ssid, pass);
+  Blynk.begin(auth, ssid, pass);
+}
+
+// ========== LOOP ==========
+void loop() {
+  Blynk.run();
+
+  int leftVal = analogRead(ldrLeft);
+  int rightVal = analogRead(ldrRight);
+  int deadband = 50;
+
+  // Serial debug
+  Serial.print("LDR Left: ");
+  Serial.print(leftVal);
+  Serial.print(" | LDR Right: ");
+  Serial.println(rightVal);
+
+  // Send to Blynk
+  Blynk.virtualWrite(V0, leftVal);
+  Blynk.virtualWrite(V1, rightVal);
+
+  // Solar Tracking Logic
+  if (leftVal > rightVal + deadband) {
+    motorStatus = "Rotating Left";
+    solarStatus = "Solar Active";
+    batteryStatus = "Discharging";
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Rotating Left");
+
+    digitalWrite(motorPin1, LOW);
+    digitalWrite(motorPin2, HIGH);
+  }
+  else if (rightVal > leftVal + deadband) {
+    motorStatus = "Rotating Right";
+    solarStatus = "Solar Active";
+    batteryStatus = "Discharging";
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Rotating Right");
+
+    digitalWrite(motorPin1, HIGH);
+    digitalWrite(motorPin2, LOW);
+  }
+  else {
+    motorStatus = "Stopped";
+    solarStatus = "Idle";
+    batteryStatus = "Holding";
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Motor Stopped");
+
+    digitalWrite(motorPin1, LOW);
+    digitalWrite(motorPin2, LOW);
+  }
+
+  // Send status strings
+  Blynk.virtualWrite(V2, motorStatus);
+  Blynk.virtualWrite(V3, solarStatus);
+  Blynk.virtualWrite(V4, batteryStatus);
+
+  delay(300);
+}
